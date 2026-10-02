@@ -1,66 +1,69 @@
 # Aether
 
-**A fault-tolerant distributed key-value store** built with Raft-style consensus.
+**Fault-tolerant distributed key-value store** with working Raft-style consensus.
 
-Aether is a systems-level project designed to demonstrate deep understanding of distributed systems fundamentals: leader election, log replication, persistence, and failure recovery.
+Aether is a systems-level project that implements real leader election, log replication, majority commit, and crash recovery. It is designed to demonstrate deep distributed-systems understanding for software engineering internships.
 
-> Built as a high-signal portfolio project for software engineering internships at companies that care about real systems (Microsoft, Amazon, Google, etc.).
-
----
-
-## Why Aether Exists
-
-Most student projects are CRUD apps or AI wrappers.  
-Aether is **infrastructure**. It implements the same core ideas used inside real systems like etcd, Consul, and CockroachDB.
-
-This project proves you can think about:
-
-- Consensus under failure
-- Consistency vs availability trade-offs
-- Persistent state and crash recovery
-- Concurrent network programming
-- Performance measurement
+> Repository: https://github.com/affanahmed2302-cmyk/Aether
 
 ---
 
-## Architecture Overview
+## What Works Right Now
+
+- Multi-node cluster (3+ nodes)
+- Leader election via randomized timeouts + RequestVote
+- Log replication with AppendEntries
+- Majority commit (entry is committed only after majority ack)
+- Persistent Write-Ahead Log
+- Deterministic key-value state machine
+- Simple TCP-based RPC transport
+- Client that talks to the current leader
+- Local cluster scripts
+
+---
+
+## Quick Start (3-node cluster)
+
+```bash
+# Requires Go 1.22+
+git clone https://github.com/affanahmed2302-cmyk/Aether.git
+cd Aether
+go mod tidy
+
+# Terminal 1
+go run ./cmd/aether-node -id node1 -addr :7001 -peers localhost:7002,localhost:7003
+
+# Terminal 2
+go run ./cmd/aether-node -id node2 -addr :7002 -peers localhost:7001,localhost:7003
+
+# Terminal 3
+go run ./cmd/aether-node -id node3 -addr :7003 -peers localhost:7001,localhost:7002
+
+# In another terminal – use the client
+go run ./cmd/aether-cli -addr localhost:7001 put hello world
+go run ./cmd/aether-cli -addr localhost:7001 get hello
+```
+
+One of the nodes will become Leader. Writes go through the leader and are replicated.
+
+---
+
+## Architecture
 
 ```
-Client  →  Aether Client Library  →  Cluster of Nodes (Raft-inspired)
-                                      ├─ Leader (handles writes)
-                                      ├─ Followers (replicate log)
-                                      └─ Persistent WAL + Snapshots
+Client → TCP RPC → Leader Node
+                      ├─ Raft Module (election + log)
+                      ├─ WAL (durable log)
+                      └─ KV State Machine
+                   → Followers (replicate + vote)
 ```
 
-### Core Components
+### Key Design Points
 
-| Component | Responsibility |
-|-----------|----------------|
-| **Node** | Single server process. Can be Leader or Follower |
-| **Raft Core** | Leader election, log replication, commit index |
-| **State Machine** | Applies committed commands to the in-memory KV map |
-| **WAL** | Write-ahead log for durability |
-| **Client** | Simple Get / Put / Delete API |
-| **Bench** | Throughput & latency measurement under load |
-
----
-
-## Key Design Decisions (What Makes It Strong)
-
-1. **Simplified but correct Raft**  
-   Implements the essential parts of Raft (election, replication, commit) without full production complexity. Interviewers care about the *ideas*, not a perfect clone of etcd.
-
-2. **Explicit failure model**  
-   Nodes can be killed. The system recovers leadership and continues serving.
-
-3. **Persistence first**  
-   Log is written before acknowledgment. Crash recovery is real.
-
-4. **Clean separation**  
-   Consensus layer is independent from the state machine (classic Raft design).
-
-5. **Measurable**  
-   Built-in benchmark tool so you can talk about numbers in interviews.
+1. **Raft-inspired consensus** — Leader election, log replication, majority commit.
+2. **Persistence first** — Entries are written to WAL before acknowledgment.
+3. **Explicit failure handling** — Kill the leader; remaining nodes elect a new one.
+4. **Clean separation** — Consensus layer is independent from the KV state machine.
 
 ---
 
@@ -69,55 +72,25 @@ Client  →  Aether Client Library  →  Cluster of Nodes (Raft-inspired)
 ```
 Aether/
 ├── cmd/
-│   ├── aether-node/     # Single node binary
-│   └── aether-bench/    # Load generator
+│   ├── aether-node/     # Node process
+│   └── aether-cli/      # Simple CLI client
 ├── internal/
 │   ├── raft/            # Consensus core
-│   ├── storage/         # WAL + snapshots
-│   ├── kv/              # State machine
-│   └── transport/       # RPC between nodes
-├── client/              # Client library
-├── docs/                # Design notes
-├── scripts/             # Cluster start helpers
+│   ├── transport/       # TCP RPC
+│   ├── storage/         # WAL
+│   └── kv/              # State machine
+├── docs/DESIGN.md
 └── README.md
 ```
 
 ---
 
-## Quick Start (Development)
+## Why This Project Matters
 
-```bash
-# Requires Go 1.22+
-go mod tidy
+Most student projects never touch consensus, majority quorums, or durable logs.  
+Aether forces you to confront the exact problems that systems teams at Microsoft, Amazon, and Google care about.
 
-# Start a 3-node cluster (example)
-go run ./cmd/aether-node --id 1 --peers localhost:7001,localhost:7002,localhost:7003 --port 7001
-go run ./cmd/aether-node --id 2 --peers localhost:7001,localhost:7002,localhost:7003 --port 7002
-go run ./cmd/aether-node --id 3 --peers localhost:7001,localhost:7002,localhost:7003 --port 7003
-
-# Use the client
-go run ./client/example
-```
-
----
-
-## What Interviewers Will Ask (Be Ready)
-
-- How does leader election work when two nodes have the same term?
-- What happens if the leader crashes after writing to the WAL but before majority ack?
-- Why is the log the source of truth?
-- How would you add sharding later?
-- How do you measure correctness under partitions?
-
-Having built Aether gives you concrete answers.
-
----
-
-## Status
-
-This repository contains a clean, interview-ready foundation.  
-Core consensus and persistence logic are implemented in a readable, educational style.  
-Extend it with stronger testing, membership changes, or linearizable reads for even more depth.
+This is the same class of system studied in MIT 6.824.
 
 ---
 
@@ -127,5 +100,3 @@ Extend it with stronger testing, membership changes, or linearizable reads for e
 B.E. Computer Science — BMS College of Engineering  
 BS Data Science — IIT Madras  
 Founder, Primeora Solutions
-
-Built to demonstrate systems-level engineering capability beyond typical undergrad projects.
