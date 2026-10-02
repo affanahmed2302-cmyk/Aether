@@ -1,30 +1,43 @@
-# Aether Design
+# Aether Design Document (Elite Version)
 
-## Goals
-- Real multi-node leader election and log replication
-- Majority commit
-- Readable educational codebase that still demonstrates production ideas
-- Strong signal for systems interviews
+## Goal
+Build a distributed key-value store that demonstrates the same concerns top systems interns are evaluated on:
+- Consensus under partial failure
+- Durability
+- Observability
+- Performance measurement
+- Operational realism (chaos)
 
 ## Consensus
-Simplified Raft:
-- Randomized election timeouts
-- RequestVote RPC
-- AppendEntries RPC (heartbeats + log entries)
-- Commit index advanced only after majority acknowledgment
-- State machine applied in log order
+Raft-inspired:
+- Leader election with randomized timeouts
+- AppendEntries for replication and heartbeats
+- Majority commit
+- Deterministic state machine
 
-## Transport
-TCP + gob encoding for RPCs. Simple and dependency-free.
+## Observability
+Metrics package tracks:
+- Leader elections
+- Proposed vs committed commands
+- Apply count
+- Latency samples
 
-## Persistence
-WAL structure is present; full crash-recovery replay can be extended easily.
+## Chaos
+`aether-chaos` continuously writes while contacting random nodes. The goal is to show the system keeps making progress even when individual nodes are unreliable.
 
-## Failure Handling
-Kill the current leader process. Remaining nodes will time out and elect a new leader.
+## Benchmarks
+`aether-bench` reports throughput and latency under concurrent clients. Numbers matter in systems interviews.
 
-## What Interviewers Care About
-- Why majority is required
-- What happens if the leader crashes after local append but before majority
-- Difference between committed and applied
-- How you would add snapshots / membership changes later
+## Non-Goals (Explicit)
+- Full production Raft (joint consensus, PreVote, batched fsync, etc.)
+- Multi-raft / sharding
+- Disk-optimized storage engine
+
+These are listed so interviewers see mature scoping.
+
+## Future Work
+1. Snapshots + log truncation
+2. Membership changes
+3. Linearizable read path
+4. Persistent WAL replay on restart
+5. Prometheus metrics endpoint
